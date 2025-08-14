@@ -15,6 +15,9 @@ from .utils import (
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from .visual import CartopySettings
+from .reconjob import ReconJob
+import pandas as pd
+from . import utils,visual
 
 class ReconRes:
     ''' The class for reconstruction results '''
@@ -148,3 +151,105 @@ class ReconRes:
             ax[k].set_ylabel(recon_name_dict[k])
 
         return fig, ax
+    
+
+    def load_proxylabels(self, verbose=False):
+        """
+        Load proxy labels from the reconstruction results.
+        Proxy with "assim" means it is assimilated.
+        Proxy with "eval" means it is used for evaluation.
+        """
+        proxy_labels = []  # list of proxy labels
+        for path in self.paths:  # loop over all ensemble members
+            with xr.open_dataset(path) as ds_tmp:
+                proxy_labels.append(ds_tmp.attrs)  # dict for proxy labels
+
+        self.proxy_labels = proxy_labels
+        if verbose:
+            p_success(f">>> ReconRes.proxy_labels created")
+
+    def indpdt_verif(self, job_path, verbose=False, calib_period=(1850, 2000),min_verif_len=10):
+        """
+        Perform independent verification.
+        job_path (str): the path to the job.
+        verbose (bool, optional): print verbose information. Defaults to False.
+        """
+        # load the reconstructions for the "prior"
+        job = ReconJob()
+        job.load(job_path)
+        indpdt_info = []
+        for path_index ,path in enumerate(self.paths):
+            proxy_labels = self.proxy_labels[path_index]
+            job.load_clim(
+                tag="prior",
+                path_dict={
+                    "tas": path,
+                },
+                anom_period=(1951, 1980),
+            )
+            job.forward_psms(verbose=verbose)
+            if verbose:
+                p_success(f">>> Prior loaded from {path}")
+            # compare the pesudo-proxy records with the real records
+            calib_PDB = job.proxydb.filter(by="tag", keys=["calibrated"])
+            for i, (pname, proxy) in enumerate(calib_PDB.records.items()):
+                detail = proxy.psm.calib_details
+                attr_dict = {}
+                attr_dict['name'] = pname
+                attr_dict['seasonality'] = detail['seasonality']
+                if pname in proxy_labels['pids_assim']:
+                    attr_dict['assim'] = True
+                elif pname in proxy_labels['pids_eval']:
+                    attr_dict['assim'] = False
+                else:
+                    raise ValueError(f"Proxy {pname} is not labeled as assim or eval. Please check the proxy labels.")
+                reconstructed = pd.DataFrame(
+                    {
+                        "time": proxy.pseudo.time,
+                        "estimated": proxy.pseudo.value,
+                    }
+                )
+                real = pd.DataFrame(
+                    {
+                        "time": proxy.time,
+                        "observed": proxy.value,
+                    }
+                )
+                Df = real.dropna().merge(reconstructed, on="time", how="inner")
+                Df.set_index("time", drop=True, inplace=True)
+                Df.sort_index(inplace=True)
+                Df.astype(float)
+                masks = {
+                    "all": None,
+                    "in": (Df.index >= calib_period[0]) & (Df.index <= calib_period[1]), # in the calibration period
+                    "before": (Df.index < calib_period[0]), # before the calibration period
+                }
+                for mask_name, mask in masks.items():
+                    if mask is not None:
+                        Df_masked = Df[mask]
+                    else:
+                        Df_masked = Df
+                    if len(Df_masked) < min_verif_len:
+                        corr = np.nan
+                        ce = np.nan
+                    else:
+                        corr = Df_masked.corr().iloc[0, 1]
+                        ce = utils.coefficient_efficiency(
+                            Df_masked.observed.values, Df_masked.estimated.values
+                        )
+                    attr_dict[mask_name + '_corr'] = corr
+                    attr_dict[mask_name + '_ce'] = ce
+                indpdt_info.append(attr_dict)
+        indpdt_info = pd.DataFrame(indpdt_info)
+        self.indpdt_info = indpdt_info
+        if verbose:
+            p_success(f">>> indpdt verification completed, results stored in ReconRes.indpdt_info")
+            p_success(f">>> Records Number: {len(indpdt_info)}")
+        return indpdt_info
+    
+    def plot_indpdt_verif(self):
+        """
+        Plot the indpdt verification results.
+        """
+        fig, axs = visual.plot_indpdt_dist(self.indpdt_info)
+        return fig, axs
