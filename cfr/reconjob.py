@@ -73,6 +73,22 @@ class ReconJob:
         else:
             raise ValueError(f'{k} not properly set.')
 
+    def _auto_recon_period(self) -> list:
+        '''Infer reconstruction period from the time coverage of the loaded proxydb.
+
+        Returns the range [floor(min_time), ceil(max_time)] across all proxy
+        records.  Falls back to [0, 2000] if no proxydb is available.
+        '''
+        pdb = getattr(self, 'proxydb', None)
+        if pdb is None or not hasattr(pdb, 'records') or pdb.nrec == 0:
+            return [0, 2000]
+        all_times = np.concatenate([pobj.time for pobj in pdb])
+        finite = all_times[np.isfinite(all_times)]
+        if len(finite) == 0:
+            return [0, 2000]
+        return [int(np.floor(finite.min())), int(np.ceil(finite.max()))]
+
+
         return v
 
     def write_cfg(self, k, v, verbose=False):
@@ -526,7 +542,7 @@ class ReconJob:
             verbose (bool, optional): print verbose information. Defaults to False.
             debug (bool): if True, the debug mode is turned on and more information will be printed out.
         '''
-        recon_period = self.io_cfg('recon_period', recon_period, default=[0, 2000], verbose=verbose)
+        recon_period = self.io_cfg('recon_period', recon_period, default=self._auto_recon_period(), verbose=verbose)
         recon_loc_rad = self.io_cfg('recon_loc_rad', recon_loc_rad, default=25000, verbose=verbose)  # unit: km
         recon_timescale = self.io_cfg('recon_timescale', recon_timescale, default=1, verbose=verbose)  # unit: yr
         recon_sampling_mode = self.io_cfg('recon_sampling_mode', recon_sampling_mode, default='fixed', verbose=verbose)
@@ -594,7 +610,7 @@ class ReconJob:
         '''
 
         t_s = time.time()
-        recon_period = self.io_cfg('recon_period', recon_period, default=[0, 2000], verbose=verbose)
+        recon_period = self.io_cfg('recon_period', recon_period, default=self._auto_recon_period(), verbose=verbose)
         recon_loc_rad = self.io_cfg('recon_loc_rad', recon_loc_rad, default=25000, verbose=verbose)  # unit: km
         recon_timescale = self.io_cfg('recon_timescale', recon_timescale, default=1, verbose=verbose)  # unit: yr
         recon_vars = self.io_cfg('recon_vars', recon_vars, default=['tas'], verbose=verbose)
