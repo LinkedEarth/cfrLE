@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cfr"
-version = "2025.7.28"
-description = "cfr: a Python package for Climate Field Reconstruction"
+version = "cfrLE_dev"
+description = "cfrLE: a Python package for PReSto"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "BSD 3-Clause" }
 authors = [
