@@ -88,6 +88,27 @@ class ReconJob:
             return [0, 2000]
         return [int(np.floor(finite.min())), int(np.ceil(finite.max()))]
 
+    def _validated_recon_period(self, requested: list) -> list:
+        '''Clip a requested recon_period to the actual proxy coverage.
+
+        If the requested period extends beyond what the proxy data cover,
+        it is silently trimmed and a warning is printed.  Returns the
+        (possibly adjusted) period and updates ``self.configs`` in place.
+        '''
+        pdb = getattr(self, 'proxydb', None)
+        if pdb is None or not hasattr(pdb, 'records') or pdb.nrec == 0:
+            return requested
+        actual = self._auto_recon_period()
+        lo = max(requested[0], actual[0])
+        hi = min(requested[1], actual[1])
+        if lo != requested[0] or hi != requested[1]:
+            p_warning(
+                f'>>> Requested recon_period {requested} extends beyond proxy coverage '
+                f'{actual}; adjusting to [{lo}, {hi}].'
+            )
+            self.configs['recon_period'] = [lo, hi]
+        return [lo, hi]
+
 
         return v
 
@@ -543,6 +564,7 @@ class ReconJob:
             debug (bool): if True, the debug mode is turned on and more information will be printed out.
         '''
         recon_period = self.io_cfg('recon_period', recon_period, default=self._auto_recon_period(), verbose=verbose)
+        recon_period = self._validated_recon_period(recon_period)
         recon_loc_rad = self.io_cfg('recon_loc_rad', recon_loc_rad, default=25000, verbose=verbose)  # unit: km
         recon_timescale = self.io_cfg('recon_timescale', recon_timescale, default=1, verbose=verbose)  # unit: yr
         recon_sampling_mode = self.io_cfg('recon_sampling_mode', recon_sampling_mode, default='fixed', verbose=verbose)
@@ -611,6 +633,7 @@ class ReconJob:
 
         t_s = time.time()
         recon_period = self.io_cfg('recon_period', recon_period, default=self._auto_recon_period(), verbose=verbose)
+        recon_period = self._validated_recon_period(recon_period)
         recon_loc_rad = self.io_cfg('recon_loc_rad', recon_loc_rad, default=25000, verbose=verbose)  # unit: km
         recon_timescale = self.io_cfg('recon_timescale', recon_timescale, default=1, verbose=verbose)  # unit: yr
         recon_vars = self.io_cfg('recon_vars', recon_vars, default=['tas'], verbose=verbose)
