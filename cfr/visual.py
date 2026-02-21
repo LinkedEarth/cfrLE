@@ -507,10 +507,10 @@ def plot_field_map(field_var, lat, lon, levels=50, add_cyclic_point=True,
     return fig, ax
 
 def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_col='type', time_col='time',
-                 title=None, title_weight='normal', markers_dict=None, colors_dict=None,
+                 title=None, title_weight='bold', markers_dict=None, colors_dict=None,
                  plot_timespan=None,  plot_xticks=[850, 1000, 1200, 1400, 1600, 1800, 2000],
                  figsize=[10, 10], projection='Robinson', proj_args=None, central_longitude=180, markersize=50,
-                 plot_count=False, nrow=2, ncol=1, wspace=0.5, hspace=0.3, return_gs=False,
+                 plot_count=False, count_title=None, nrow=2, ncol=1, wspace=0.5, hspace=0.3, return_gs=False,
                  lgd_ncol=None, lgd_anchor_upper=(1, 0), lgd_anchor_lower=(1, -0.05),lgd_frameon=False,
                  enumerate_ax=False, enumerate_prop={'weight': 'bold', 'size': 30}, p=STYLE, stock_img=True, modern_topo=True,
                  enumerate_anchor_map=[0, 1], enumerate_anchor_count=[0, 1], map_grid_idx=0, count_grid_idx=1):
@@ -635,6 +635,9 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
 
         ax['count'].set_xlabel('Year (AD)')
         ax['count'].set_ylabel('number of proxies')
+        _count_title = count_title if count_title is not None else f'Proxy count (total: {len(df)})'
+        if _count_title:
+            ax['count'].set_title(_count_title, fontweight='bold')
         if plot_timespan is not None:
             ax['count'].set_xlim(plot_timespan)
             ax['count'].set_xticks(plot_xticks)
