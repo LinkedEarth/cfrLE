@@ -568,6 +568,9 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
         if ptype in markers_dict:
             marker = markers_dict[ptype]
             color = colors_dict[ptype]
+        elif ptype.startswith('tree.'):
+            marker = 'o'
+            color = sns.xkcd_rgb['green']
         else:
             marker = 'o'
             color = 'tab:blue'
@@ -616,6 +619,8 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
         for ptype in type_set:
             if ptype in markers_dict:
                 color = colors_dict[ptype]
+            elif ptype.startswith('tree.'):
+                color = sns.xkcd_rgb['green']
             else:
                 color = 'tab:blue'
 
