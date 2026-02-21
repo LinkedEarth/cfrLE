@@ -568,6 +568,9 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
         if ptype in markers_dict:
             marker = markers_dict[ptype]
             color = colors_dict[ptype]
+        elif ptype.startswith('tree.'):
+            marker = 'o'
+            color = sns.xkcd_rgb['green']
         else:
             marker = 'o'
             color = 'tab:blue'
@@ -601,7 +604,7 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
             ptype = row[type_col]
             time = np.array(row[time_col]).astype(int)
             time = time[~np.isnan(time)]
-            time = time[time<np.max(year)+1]
+            time = time[(time >= np.min(year)) & (time < np.max(year)+1)]
             time = np.sort(list(set(time)))  # remove the duplicates for monthly data
             ts = pd.Series(index=time, data=1, name=row['pid'])
             df_count[ptype] = pd.concat([df_count[ptype], ts], axis=1)
@@ -616,6 +619,8 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
         for ptype in type_set:
             if ptype in markers_dict:
                 color = colors_dict[ptype]
+            elif ptype.startswith('tree.'):
+                color = sns.xkcd_rgb['green']
             else:
                 color = 'tab:blue'
 
