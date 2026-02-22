@@ -72,6 +72,7 @@ class ReconJob:
             if verbose: p_header(f'>>> job.configs["{k}"] = {v}')
         else:
             raise ValueError(f'{k} not properly set.')
+        return v
 
     def _auto_recon_period(self) -> list:
         '''Infer reconstruction period from the time coverage of the loaded proxydb.
@@ -95,6 +96,8 @@ class ReconJob:
         it is silently trimmed and a warning is printed.  Returns the
         (possibly adjusted) period and updates ``self.configs`` in place.
         '''
+        if requested is None:
+            return requested
         pdb = getattr(self, 'proxydb', None)
         if pdb is None or not hasattr(pdb, 'records') or pdb.nrec == 0:
             return requested
