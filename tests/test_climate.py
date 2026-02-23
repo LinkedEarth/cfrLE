@@ -76,16 +76,8 @@ class TestClimateFieldFromNp:
 # ---------------------------------------------------------------------------
 
 class TestClimateFieldLen:
-    def test_len_via_da(self, simple_field):
-        # ClimateField.__len__ references self.time which is not a defined
-        # attribute, so we use da.sizes directly. This documents the known
-        # gap: len(field) raises AttributeError (see COVERAGE_GAPS.md).
-        assert simple_field.da.sizes['time'] == 10
-
-    def test_len_raises_without_time_attr(self, simple_field):
-        # Document that __len__ is broken: it calls self.time which does not exist
-        with pytest.raises(AttributeError):
-            len(simple_field)
+    def test_len_matches_time(self, simple_field):
+        assert len(simple_field) == 10
 
 
 # ---------------------------------------------------------------------------
