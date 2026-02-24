@@ -299,3 +299,116 @@ class TestClimateFieldIndex:
         fd = self._make_global_field()
         shm = fd.index('shm')
         assert isinstance(shm, EnsTS)
+
+
+# ---------------------------------------------------------------------------
+# Helper: monthly cftime ClimateField
+# ---------------------------------------------------------------------------
+
+import cftime as _cftime
+
+def make_monthly_cftime_field(start_year=1950, n_years=10, nlat=4, nlon=4, seed=0):
+    """Monthly ClimateField with cftime time axis (needed for get_anom/annualize)."""
+    rng = np.random.default_rng(seed)
+    lat = np.linspace(-75, 75, nlat)
+    lon = np.linspace(0, 270, nlon)
+    dates = [
+        _cftime.datetime(y, m, 1, calendar='standard')
+        for y in range(start_year, start_year + n_years)
+        for m in range(1, 13)
+    ]
+    n = n_years * 12
+    value = rng.standard_normal((n, nlat, nlon)) + 288.0
+    da = xr.DataArray(
+        value, dims=['time', 'lat', 'lon'],
+        coords={'time': dates, 'lat': lat, 'lon': lon},
+    )
+    fd = ClimateField(da)
+    fd.da.name = 'tas'
+    return fd
+
+
+# ---------------------------------------------------------------------------
+# get_anom()
+# ---------------------------------------------------------------------------
+
+class TestClimateFieldGetAnom:
+    def test_returns_climatefield(self):
+        fd = make_monthly_cftime_field()
+        anom = fd.get_anom(ref_period=[1950, 1959])
+        assert isinstance(anom, ClimateField)
+
+    def test_same_shape_as_input(self):
+        fd = make_monthly_cftime_field()
+        anom = fd.get_anom(ref_period=[1950, 1959])
+        assert anom.da.shape == fd.da.shape
+
+    def test_anomaly_mean_near_zero(self):
+        fd = make_monthly_cftime_field()
+        anom = fd.get_anom(ref_period=[1950, 1959])
+        # Monthly climatology is removed, so the overall time-mean should be ~0
+        assert abs(float(anom.da.mean())) < abs(float(fd.da.mean())) / 10
+
+
+# ---------------------------------------------------------------------------
+# annualize()
+# ---------------------------------------------------------------------------
+
+class TestClimateFieldAnnualize:
+    def test_annual_output_length(self):
+        fd = make_monthly_cftime_field(n_years=10)
+        ann = fd.annualize()
+        assert ann.da.sizes['time'] == 10
+
+    def test_returns_climatefield(self):
+        fd = make_monthly_cftime_field()
+        ann = fd.annualize()
+        assert isinstance(ann, ClimateField)
+
+    def test_jja_subset(self):
+        fd = make_monthly_cftime_field(n_years=10)
+        jja = fd.annualize(months=[6, 7, 8])
+        assert jja.da.sizes['time'] == 10
+
+
+# ---------------------------------------------------------------------------
+# regrid()
+# ---------------------------------------------------------------------------
+
+class TestClimateFieldRegrid:
+    def test_output_has_new_grid(self, simple_field):
+        new_lats = np.linspace(-60, 60, 4)
+        new_lons = np.linspace(0, 270, 4)
+        rg = simple_field.regrid(lats=new_lats, lons=new_lons)
+        np.testing.assert_array_almost_equal(rg.da.lat.values, new_lats)
+        np.testing.assert_array_almost_equal(rg.da.lon.values, new_lons)
+
+    def test_returns_climatefield(self, simple_field):
+        rg = simple_field.regrid(lats=np.linspace(-60, 60, 4),
+                                  lons=np.linspace(0, 270, 4))
+        assert isinstance(rg, ClimateField)
+
+    def test_shape_after_regrid(self, simple_field):
+        rg = simple_field.regrid(lats=np.linspace(-60, 60, 3),
+                                  lons=np.linspace(0, 270, 5))
+        assert rg.da.shape == (10, 3, 5)
+
+
+# ---------------------------------------------------------------------------
+# to_nc() / load_nc() — round-trip
+# ---------------------------------------------------------------------------
+
+class TestClimateFieldIO:
+    def test_roundtrip_values(self, simple_field, tmp_path):
+        path = str(tmp_path / 'field.nc')
+        simple_field.to_nc(path, verbose=False)
+        loaded = ClimateField().load_nc(path)
+        np.testing.assert_allclose(loaded.da.values, simple_field.da.values, atol=1e-5)
+
+    def test_roundtrip_coords(self, simple_field, tmp_path):
+        path = str(tmp_path / 'coords.nc')
+        simple_field.to_nc(path, verbose=False)
+        loaded = ClimateField().load_nc(path)
+        assert 'lat' in loaded.da.coords
+        assert 'lon' in loaded.da.coords
+        np.testing.assert_allclose(loaded.da.lat.values, simple_field.da.lat.values, atol=1e-6)

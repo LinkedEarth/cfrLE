@@ -42,8 +42,8 @@ def make_proxy_db(n=3, start_year=1200, nyears=100, seed=1):
     """ProxyDatabase with records co-located at prior grid points."""
     rng = np.random.default_rng(seed)
     # lat/lon match grid points produced by make_prior(nlat=4, nlon=4)
-    lats = [-75.0, -25.0, 25.0][:n]
-    lons = [0.0, 90.0, 180.0][:n]
+    lats = [-75.0, -25.0, 25.0, 75.0][:n]
+    lons = [0.0, 90.0, 180.0, 270.0][:n]
     time = np.arange(start_year, start_year + nyears, dtype=float)
     records = {}
     for i in range(n):
@@ -181,3 +181,82 @@ class TestReconJobDA:
         times = ds['tas_gm']['time'].values
         assert 1257 in times or 1257.0 in times
         ds.close()
+
+
+# ---------------------------------------------------------------------------
+# _auto_recon_period() / _validated_recon_period()
+# ---------------------------------------------------------------------------
+
+class TestReconJobPeriod:
+    def test_auto_period_no_proxydb_returns_default(self):
+        job = ReconJob()
+        assert job._auto_recon_period() == [0, 2000]
+
+    def test_auto_period_with_proxydb(self):
+        job = ReconJob()
+        job.proxydb = make_proxy_db(start_year=1200, nyears=100)
+        lo, hi = job._auto_recon_period()
+        assert lo == 1200
+        assert hi == 1299
+
+    def test_validated_period_within_coverage_unchanged(self):
+        job = ReconJob()
+        job.proxydb = make_proxy_db(start_year=1200, nyears=100)
+        result = job._validated_recon_period([1250, 1280])
+        assert result == [1250, 1280]
+
+    def test_validated_period_clipped_to_coverage(self):
+        job = ReconJob()
+        job.proxydb = make_proxy_db(start_year=1200, nyears=100)
+        result = job._validated_recon_period([1100, 1400])
+        assert result[0] >= 1200
+        assert result[1] <= 1299
+
+    def test_validated_period_none_returns_none(self):
+        job = ReconJob()
+        job.proxydb = make_proxy_db()
+        assert job._validated_recon_period(None) is None
+
+
+# ---------------------------------------------------------------------------
+# split_proxydb()
+# ---------------------------------------------------------------------------
+
+class TestReconJobSplitProxydb:
+    def _make_calibrated_job(self, n=4):
+        pdb = make_proxy_db(n=n)
+        for pid in pdb.pids:
+            pdb.records[pid].tags.add('calibrated')
+        job = ReconJob()
+        job.proxydb = pdb
+        return job
+
+    def test_creates_assim_and_eval_tags(self):
+        job = self._make_calibrated_job(n=4)
+        job.split_proxydb(assim_frac=0.75)
+        n_assim = sum(1 for _, r in job.proxydb.records.items() if 'assim' in r.tags)
+        n_eval  = sum(1 for _, r in job.proxydb.records.items() if 'eval' in r.tags)
+        assert n_assim + n_eval == 4
+        assert n_assim == 3   # int(4 * 0.75) = 3
+        assert n_eval  == 1
+
+    def test_same_seed_gives_same_split(self):
+        job = self._make_calibrated_job(n=4)
+        job.split_proxydb(seed=42, assim_frac=0.5)
+        tags1 = {pid: frozenset(r.tags) for pid, r in job.proxydb.records.items()}
+
+        # reset tags and re-split with same seed
+        for _, r in job.proxydb.records.items():
+            r.tags = {'calibrated'}
+        job.split_proxydb(seed=42, assim_frac=0.5)
+        tags2 = {pid: frozenset(r.tags) for pid, r in job.proxydb.records.items()}
+        assert tags1 == tags2
+
+    def test_all_tagged_records_assigned(self):
+        # Every calibrated record gets either assim or eval — none left unassigned
+        job = self._make_calibrated_job(n=4)
+        job.split_proxydb(assim_frac=0.5)
+        for pid, r in job.proxydb.records.items():
+            has_assim = 'assim' in r.tags
+            has_eval  = 'eval' in r.tags
+            assert has_assim or has_eval, f'{pid} got neither tag'

@@ -240,3 +240,98 @@ class TestOverlapTs:
         ys2 = np.array([50.0, 60.0])
         time_ov, y1_ov, y2_ov = utils.overlap_ts(ts1, ys1, ts2, ys2)
         assert len(time_ov) == 0
+
+
+# ---------------------------------------------------------------------------
+# ols_ts
+# ---------------------------------------------------------------------------
+
+class TestOlsTs:
+    def test_returns_ols_model(self):
+        ts = np.arange(1990, 2000, dtype=float)
+        ys_proxy = np.sin(np.linspace(0, 2, 10))
+        ys_obs = ys_proxy + 0.1
+        model = utils.ols_ts(ts, ys_proxy, ts, ys_obs)
+        assert hasattr(model, 'fit')
+
+    def test_fit_uses_overlap(self):
+        ts_proxy = np.arange(1985, 2000, dtype=float)
+        ys_proxy = np.random.default_rng(0).standard_normal(15)
+        ts_obs = np.arange(1990, 2005, dtype=float)
+        ys_obs = np.random.default_rng(1).standard_normal(15)
+        model = utils.ols_ts(ts_proxy, ys_proxy, ts_obs, ys_obs)
+        result = model.fit()
+        # overlap is 1990-1999 → 10 points
+        assert result.nobs == 10
+
+    def test_perfect_linear_fit(self):
+        ts = np.arange(1990, 2010, dtype=float)
+        ys_proxy = np.linspace(0, 1, 20)
+        ys_obs = 2.0 * ys_proxy + 1.0  # y = 2x + 1
+        model = utils.ols_ts(ts, ys_proxy, ts, ys_obs)
+        result = model.fit()
+        np.testing.assert_allclose(result.rsquared, 1.0, atol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# geo_mean
+# ---------------------------------------------------------------------------
+
+class TestGeoMean:
+    def _make_uniform_da(self, nlat=9, nlon=18, nt=5):
+        import xarray as xr
+        lat = np.linspace(-90, 90, nlat)
+        lon = np.linspace(0, 340, nlon)
+        time = np.arange(nt, dtype=float)
+        return xr.DataArray(
+            np.ones((nt, nlat, nlon)),
+            dims=['time', 'lat', 'lon'],
+            coords={'time': time, 'lat': lat, 'lon': lon},
+        )
+
+    def test_uniform_field_is_one(self):
+        da = self._make_uniform_da()
+        gm = utils.geo_mean(da)
+        np.testing.assert_allclose(gm.values, 1.0, atol=1e-6)
+
+    def test_output_shape_is_time_only(self):
+        da = self._make_uniform_da(nt=7)
+        gm = utils.geo_mean(da)
+        assert gm.shape == (7,)
+
+    def test_nh_mean_equals_sh_mean_for_uniform(self):
+        da = self._make_uniform_da()
+        nhm = utils.geo_mean(da, lat_min=0)
+        shm = utils.geo_mean(da, lat_max=0)
+        np.testing.assert_allclose(nhm.values, shm.values, atol=1e-6)
+
+    def test_regional_subset_returns_values(self):
+        da = self._make_uniform_da()
+        regional = utils.geo_mean(da, lat_min=-30, lat_max=30, lon_min=0, lon_max=180)
+        np.testing.assert_allclose(regional.values, 1.0, atol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# year_float2dates
+# ---------------------------------------------------------------------------
+
+class TestYearFloat2Dates:
+    def test_returns_list_of_datetimes(self):
+        from datetime import datetime
+        dates = utils.year_float2dates(np.array([2000.0, 2001.0]))
+        assert all(isinstance(d, datetime) for d in dates)
+
+    def test_integer_years_are_january_first(self):
+        dates = utils.year_float2dates(np.array([2020.0, 2021.0]))
+        for d in dates:
+            assert d.month == 1
+            assert d.day == 1
+
+    def test_midyear_is_july(self):
+        dates = utils.year_float2dates(np.array([2020.5]))
+        assert dates[0].month == 7
+
+    def test_output_length_matches_input(self):
+        arr = np.arange(2000, 2010, dtype=float)
+        dates = utils.year_float2dates(arr)
+        assert len(dates) == 10

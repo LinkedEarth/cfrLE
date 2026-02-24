@@ -5,6 +5,8 @@ existing notebook** under `docsrc/notebooks/` and therefore lack notebook-level
 "documentation-as-test" coverage. Unit tests for these features still need to
 be written.
 
+Items marked ✅ have been added to the test suite.
+
 ---
 
 ## cfr.ts.EnsTS
@@ -21,16 +23,16 @@ be written.
 | Method | Gap |
 |--------|-----|
 | `fetch(name)` | Downloads from cloud; needs mock or integration test |
-| `get_anom(ref_period)` | Anomaly w.r.t. reference period; not directly asserted in any notebook code |
+| ✅ `get_anom(ref_period)` | Added in `test_climate.py::TestClimateFieldGetAnom` |
 | `get_eof(n, ...)` | EOF decomposition; no notebook exercises this |
 | `plot_eof(...)` | EOF plot; ditto |
 | `plotly_grid(...)` | Interactive plotly map; no notebook covers it |
-| `regrid(lats, lons)` | Regridding; notebooks show it but no assertions are made; needs unit test verifying output grid |
-| `annualize(months)` | Notebook shows call but no output check |
-| `index('nino3.4')` / `'nino1+2'` / `'tpi'` / `'dmi'` / `'iobw'` / `'wpi'` | Only `'gm'`/`'nhm'`/`'shm'`/`'nino3.4'` are notebook-exercised; others untested |
+| ✅ `regrid(lats, lons)` | Added in `test_climate.py::TestClimateFieldRegrid` |
+| ✅ `annualize(months)` | Added in `test_climate.py::TestClimateFieldAnnualize` |
+| `index('nino3.4')` / `'nino1+2'` / `'tpi'` / `'dmi'` / `'iobw'` / `'wpi'` | Only `'gm'`/`'nhm'`/`'shm'` tested; others untested |
 | `__floordiv__` | Not demonstrated anywhere |
-| `wrap_lon()` | Called internally; no notebook assertion |
-| `load_nc` / `to_nc` | I/O; notebooks call but assertions are implicit; deserves a round-trip test |
+| `wrap_lon()` | Covered in `test_climate.py::TestClimateFieldWrapLon` |
+| ✅ `load_nc` / `to_nc` | Round-trip added in `test_climate.py::TestClimateFieldIO` |
 
 ---
 
@@ -38,17 +40,17 @@ be written.
 
 | Method | Gap |
 |--------|-----|
-| `get_clim(fields, ...)` | Nearest-climate extraction; requires attached ClimateField objects — no isolated test |
+| ✅ `get_clim(fields, ...)` | Added in `test_proxy.py::TestProxyRecordGetClim` |
 | `correct_elev_tas(t_rate)` | Elevation-lapse-rate correction; never demonstrated |
-| `get_pseudo(psm, ...)` | Pseudoproxy generation pipeline; tested indirectly in pp2k notebooks but not unit-tested |
-| `del_clim()` / `del_pseudo()` | Cleanup methods; never tested |
+| `get_pseudo(psm, ...)` | Indirectly covered via `test_reconjob.py` (forward_psms) |
+| ✅ `del_clim()` | Added in `test_proxy.py::TestProxyRecordGetClim` |
+| `del_pseudo()` | Trivial; `del_clim` pattern is covered |
 | `dashboard()` | Requires `pyleoclim`; no unit test |
 | `dashboard_clim()` | Requires `pyleoclim`; no unit test |
 | `plot_dups()` | Duplicate-plot method; no test |
 | `plot_compare(ref, ...)` | Compare-plot method; no test |
 | `plotly(...)` | Interactive plot; no test |
-| `to_nc` / `load_nc` | Proxy round-trip I/O; deserves a tmp-file round-trip test |
-| `from_da` / `to_da` | Covered in `test_proxy.py` but only for simple fields |
+| ✅ `to_nc` / `load_nc` | Round-trip added in `test_proxy.py::TestProxyRecordIO` |
 
 ---
 
@@ -57,16 +59,16 @@ be written.
 | Method | Gap |
 |--------|-----|
 | `fetch(name)` | Cloud load; needs mock |
-| `from_df(df, ...)` | Covered in proxy-io notebook but not in unit tests |
-| `to_nc` / `load_nc` | Database-level I/O round-trip |
-| `find_duplicates(r_thresh, time_period)` | Never notebook-tested with assertions |
-| `squeeze_dups(pids_to_keep)` | Ditto |
-| `nrec_tags(keys)` | Tag count helper; untested |
+| ✅ `from_df(df, ...)` | Added in `test_proxy.py::TestProxyDatabaseFromDf` |
+| `to_nc` / `load_nc` | Database-level I/O round-trip; still missing |
+| ✅ `find_duplicates(r_thresh, time_period)` | Added in `test_proxy.py::TestProxyDatabaseFindDuplicates` |
+| `squeeze_dups(pids_to_keep)` | Untested |
+| ✅ `nrec_tags(keys)` | Added in `test_proxy.py::TestProxyDatabaseNrecTags` |
 | `plotly(...)` / `plotly_concise(...)` / `plotly_count(...)` | Interactive visualisations; no tests |
-| `filter(by='dt', ...)` | Resolution-based filtering; not covered by current unit tests |
-| `filter(by='loc-circle', ...)` / `filter(by='loc-square', ...)` | Geographic filtering modes; no unit tests |
+| ✅ `filter(by='dt', ...)` | Added in `test_proxy.py::TestProxyDatabaseExtendedFilter` |
+| ✅ `filter(by='loc-circle', ...)` / `filter(by='loc-square', ...)` | Added in same class |
 | `clear_proxydb_tags()` | Convenience method; no test |
-| `standardize(ref_period)` | Database-level standardisation; no unit test (only `center` is tested) |
+| ✅ `standardize(ref_period)` | Added in `test_proxy.py::TestProxyDatabaseStandardize` |
 
 ---
 
@@ -77,11 +79,11 @@ optional/external packages (`pathos`, `fbm`, `PyVSL`, PRYSM, BayMag, etc.):
 
 | Class | Missing coverage |
 |-------|-----------------|
-| `TempPlusNoise` | `calibrate()` + `forward()` |
+| ✅ `TempPlusNoise` | `calibrate()` + `forward()` covered in `test_reconjob.py` |
 | `Ice_d18O` | `forward()` — complex multi-variable ice model |
-| `Lake_VarveThickness` | `forward()` |
-| `Coral_SrCa` | `forward()` |
-| `Coral_d18O` | `forward()` |
+| `Lake_VarveThickness` | `forward()` — construction smoke-tested only |
+| `Coral_SrCa` | `forward()` — construction smoke-tested only |
+| `Coral_d18O` | `forward()` — construction smoke-tested only |
 | `VSLite` | `calibrate()` + `forward()` |
 | `BayTEX86` | `forward()` |
 | `BayUK37` | `forward()` |
@@ -95,22 +97,21 @@ required optional package is absent, then test with a minimal synthetic climate.
 
 ## cfr.reconjob.ReconJob
 
-Almost the entire class is untested at the unit level. Key gaps:
-
 | Method | Gap |
 |--------|-----|
-| `run_da(...)` | Core DA reconstruction; needs synthetic prior + proxies; computationally expensive |
-| `run_da_mc(...)` | Monte-Carlo DA; same challenge |
-| `calib_psms(...)` | PSM calibration orchestration; needs full pipeline setup |
-| `forward_psms(...)` | PSM forward orchestration |
+| ✅ `run_da(...)` | Covered via `run_da_mc` in `test_reconjob.py` |
+| ✅ `run_da_mc(...)` | Added in `test_reconjob.py::TestReconJobDA` |
+| ✅ `calib_psms(...)` | Added in `test_reconjob.py::TestReconJobCalibPSMs` |
+| ✅ `forward_psms(...)` | Added in `test_reconjob.py::TestReconJobForwardPSMs` |
 | `run_graphem(...)` | GraphEM solver; requires optional `cfr-graphem` package |
 | `graphem_kcv(...)` | Cross-validation; same |
 | `prep_graphem(...)` | Setup; same |
-| `split_proxydb(...)` | Random assimilation/verification split; testable with synthetic data |
+| ✅ `split_proxydb(...)` | Added in `test_reconjob.py::TestReconJobSplitProxydb` |
 | `load_clim(...)` / `regrid_clim(...)` / `crop_clim(...)` / `annualize_clim(...)` | Climate preprocessing steps; testable with synthetic netCDF |
 | `save(...)` / `load(...)` | Pickle I/O round-trip |
 | `save_cfg(...)` / `io_cfg(...)` | Config I/O |
-| `_auto_recon_period()` / `_validated_recon_period(...)` | Period inference logic; unit-testable but not tested |
+| ✅ `_auto_recon_period()` | Added in `test_reconjob.py::TestReconJobPeriod` |
+| ✅ `_validated_recon_period(...)` | Added in same class |
 | `mark_pids(...)` / `clear_proxydb_tags(...)` | Tag management |
 | `prep_da_cfg(...)` / `run_da_cfg(...)` / `run_graphem_cfg(...)` | Config-file-driven workflows |
 
@@ -152,17 +153,17 @@ No notebook demonstrates `GCMCase` or `GCMCases` in an accessible way. Gaps:
 
 | Function | Gap |
 |----------|-----|
-| `ols_ts(...)` | OLS regression between two time series; no unit test |
+| ✅ `ols_ts(...)` | Added in `test_utils.py::TestOlsTs` |
 | `regrid_field(...)` | Spectral regridding (requires `spharm`); no test |
 | `regrid_field_curv_rect(...)` | Curvilinear→rectilinear regridding; no test |
-| `geo_mean(da, ...)` | Weighted spatial mean on DataArray; no isolated unit test |
+| ✅ `geo_mean(da, ...)` | Added in `test_utils.py::TestGeoMean` |
 | `annualize_var(year_float, var, ...)` | Variable array annualisation; no test |
 | `colored_noise_2regimes(...)` | Two-regime colored noise; no test |
 | `arr_str2np(arr)` | String-to-numpy array parser; no test |
 | `is_numeric(obj)` | Duck-type numeric check; no test |
 | `replace_str(fpath, d)` | File string replacement; no test |
 | `download(url, fname, ...)` | Network download; needs mock |
-| `year_float2dates(year_float)` | Float-to-`datetime.datetime` conversion; no test |
+| ✅ `year_float2dates(year_float)` | Added in `test_utils.py::TestYearFloat2Dates` |
 
 ---
 
@@ -170,20 +171,20 @@ No notebook demonstrates `GCMCase` or `GCMCases` in an accessible way. Gaps:
 
 | Module | Total public API items | Items with unit tests | Coverage estimate |
 |--------|----------------------|----------------------|-------------------|
-| `utils.py` | ~25 | ~12 | ~48% |
+| `utils.py` | ~25 | ~15 | ~60% |
 | `ts.py` (EnsTS) | ~20 | ~18 | ~90% |
-| `proxy.py` (ProxyRecord) | ~25 | ~15 | ~60% |
-| `proxy.py` (ProxyDatabase) | ~20 | ~12 | ~60% |
-| `climate.py` (ClimateField) | ~25 | ~18 | ~72% |
-| `psm.py` | ~30 | ~5 (Linear + Bilinear only) | ~17% |
-| `reconjob.py` | ~35 | 0 | 0% |
+| `proxy.py` (ProxyRecord) | ~25 | ~19 | ~76% |
+| `proxy.py` (ProxyDatabase) | ~20 | ~17 | ~85% |
+| `climate.py` (ClimateField) | ~25 | ~22 | ~88% |
+| `psm.py` | ~30 | ~8 | ~27% |
+| `reconjob.py` | ~35 | ~10 | ~29% |
 | `reconres.py` | ~7 | 0 | 0% |
 | `gcm.py` | ~12 | 0 | 0% |
 
-**Priority targets for the next round of tests:**
-1. `ReconJob._auto_recon_period()` and `_validated_recon_period()` — pure logic, easy to test
-2. `ReconJob.split_proxydb()` — random split, testable with synthetic data
-3. `utils.ols_ts` and `utils.geo_mean` — standalone numerical functions
-4. `ProxyDatabase.find_duplicates()` — important for data-quality workflows
-5. `ProxyRecord.get_pseudo()` with `TempPlusNoise` — core pseudoproxy pipeline
-6. Round-trip I/O tests for `ProxyRecord.to_nc`/`load_nc` and `ClimateField.to_nc`/`load_nc`
+**Remaining priority targets:**
+1. `ReconRes.load()` + `valid()` — create synthetic recon output in a fixture, test loading and validation
+2. `ReconJob.save()` / `load()` — pickle round-trip (straightforward once synthetic pipeline works)
+3. `ReconJob.annualize_clim()` / `regrid_clim()` / `crop_clim()` — testable with synthetic cftime prior
+4. PSM `forward()` for `Coral_SrCa`, `Coral_d18O`, `Lake_VarveThickness` — skip when deps missing
+5. `utils.geo_mean` extended tests (already done); `annualize_var`; `arr_str2np`
+6. `ProxyDatabase.to_nc` / `load_nc` — database-level I/O round-trip

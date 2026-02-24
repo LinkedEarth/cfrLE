@@ -410,3 +410,217 @@ class TestProxyDatabaseAnnualize:
         ann = pdb.annualize()
         assert isinstance(ann, ProxyDatabase)
         assert ann.nrec <= pdb.nrec  # might drop records if can't annualize
+
+
+# ---------------------------------------------------------------------------
+# ProxyRecord.get_clim() / del_clim() / del_pseudo()
+# ---------------------------------------------------------------------------
+
+class TestProxyRecordGetClim:
+    def _make_climate_field(self):
+        from cfr.climate import ClimateField
+        lat = np.linspace(-75, 75, 6)
+        lon = np.linspace(0, 330, 8)
+        time = np.arange(1950, 2000, dtype=float)
+        value = np.random.default_rng(0).standard_normal((50, 6, 8))
+        fd = ClimateField().from_np(time=time, lat=lat, lon=lon, value=value)
+        fd.da.name = 'tas'
+        return fd
+
+    def test_clim_key_created(self):
+        rec = make_record()
+        fd = self._make_climate_field()
+        rec.get_clim(fd, tag='obs')
+        assert 'obs.tas' in rec.clim
+
+    def test_clim_is_climatefield(self):
+        from cfr.climate import ClimateField
+        rec = make_record()
+        fd = self._make_climate_field()
+        rec.get_clim(fd, tag='obs')
+        assert isinstance(rec.clim['obs.tas'], ClimateField)
+
+    def test_clim_is_1d(self):
+        rec = make_record()
+        fd = self._make_climate_field()
+        rec.get_clim(fd, tag='obs')
+        assert rec.clim['obs.tas'].da.ndim == 1
+
+    def test_del_clim_removes_attribute(self):
+        rec = make_record()
+        fd = self._make_climate_field()
+        rec.get_clim(fd, tag='obs')
+        assert hasattr(rec, 'clim')
+        rec.del_clim()
+        assert not hasattr(rec, 'clim')
+
+    def test_del_clim_idempotent(self):
+        rec = make_record()
+        rec.del_clim()  # no clim to begin with — should not raise
+        rec.del_clim()  # second call also safe
+
+
+# ---------------------------------------------------------------------------
+# ProxyRecord.to_nc() / load_nc()
+# ---------------------------------------------------------------------------
+
+class TestProxyRecordIO:
+    def test_roundtrip_nc(self, tmp_path):
+        rec = make_record()
+        path = str(tmp_path / 'rec.nc')
+        rec.to_nc(path, verbose=False)
+        rec2 = ProxyRecord().load_nc(path)
+        np.testing.assert_allclose(rec2.value, rec.value, atol=1e-6)
+        assert rec2.lat == pytest.approx(rec.lat)
+        assert rec2.ptype == rec.ptype
+
+
+# ---------------------------------------------------------------------------
+# ProxyDatabase.from_df()
+# ---------------------------------------------------------------------------
+
+class TestProxyDatabaseFromDf:
+    def _make_df(self, n=2, seed=99):
+        import pandas as pd
+        rng = np.random.default_rng(seed)
+        return pd.DataFrame({
+            'paleoData_pages2kID': [f'tree_{i:03d}' for i in range(n)],
+            'geo_meanLat': [float(i * 20 - 20) for i in range(n)],
+            'geo_meanLon': [float(i * 30) for i in range(n)],
+            'geo_meanElev': [0.0] * n,
+            'year': [np.arange(1900, 1950, dtype=float) for _ in range(n)],
+            'paleoData_values': [rng.standard_normal(50) for _ in range(n)],
+            'ptype': ['tree.TRW'] * n,
+            'paleoData_variableName': ['TRW'] * n,
+            'paleoData_units': ['mm'] * n,
+        })
+
+    def test_nrec_matches_df_rows(self):
+        pdb = ProxyDatabase().from_df(self._make_df(n=3))
+        assert pdb.nrec == 3
+
+    def test_pids_from_pid_column(self):
+        pdb = ProxyDatabase().from_df(self._make_df(n=2))
+        assert 'tree_000' in pdb.pids
+        assert 'tree_001' in pdb.pids
+
+    def test_ptype_preserved(self):
+        pdb = ProxyDatabase().from_df(self._make_df(n=1))
+        assert pdb.records['tree_000'].ptype == 'tree.TRW'
+
+    def test_wrong_input_type_raises(self):
+        with pytest.raises(TypeError):
+            ProxyDatabase().from_df([1, 2, 3])
+
+
+# ---------------------------------------------------------------------------
+# ProxyDatabase.find_duplicates()
+# ---------------------------------------------------------------------------
+
+class TestProxyDatabaseFindDuplicates:
+    def test_identical_records_detected(self):
+        rng = np.random.default_rng(0)
+        time = np.arange(1950, 2000, dtype=float)
+        value = rng.standard_normal(50)
+        rec1 = ProxyRecord(pid='rec_A', lat=30.0, lon=90.0,
+                           time=time.copy(), value=value.copy(), ptype='tree.TRW')
+        rec2 = ProxyRecord(pid='rec_B', lat=30.0, lon=90.0,
+                           time=time.copy(), value=value.copy(), ptype='tree.TRW')
+        pdb = ProxyDatabase(records={'rec_A': rec1, 'rec_B': rec2})
+        pdb_dups = pdb.find_duplicates(r_thresh=0.99, time_period=[1950, 1999])
+        assert pdb_dups.nrec == 2
+
+    def test_uncorrelated_records_not_flagged(self):
+        rng = np.random.default_rng(0)
+        time = np.arange(1950, 2000, dtype=float)
+        rec1 = ProxyRecord(pid='rec_A', lat=30.0, lon=90.0,
+                           time=time.copy(), value=rng.standard_normal(50), ptype='tree.TRW')
+        rec2 = ProxyRecord(pid='rec_B', lat=30.0, lon=90.0,
+                           time=time.copy(), value=rng.standard_normal(50), ptype='tree.TRW')
+        pdb = ProxyDatabase(records={'rec_A': rec1, 'rec_B': rec2})
+        pdb_dups = pdb.find_duplicates(r_thresh=0.99, time_period=[1950, 1999])
+        assert pdb_dups.nrec == 0
+
+    def test_duplicate_groups_attribute(self):
+        rng = np.random.default_rng(5)
+        time = np.arange(1950, 2000, dtype=float)
+        value = rng.standard_normal(50)
+        rec1 = ProxyRecord(pid='rec_A', lat=0.0, lon=0.0,
+                           time=time.copy(), value=value.copy(), ptype='tree.TRW')
+        rec2 = ProxyRecord(pid='rec_B', lat=0.0, lon=0.0,
+                           time=time.copy(), value=value.copy(), ptype='tree.TRW')
+        pdb = ProxyDatabase(records={'rec_A': rec1, 'rec_B': rec2})
+        pdb_dups = pdb.find_duplicates(r_thresh=0.9, time_period=[1950, 1999])
+        assert hasattr(pdb_dups, 'groups')
+        assert len(pdb_dups.groups) == 1
+
+
+# ---------------------------------------------------------------------------
+# ProxyDatabase.filter() — extended modes
+# ---------------------------------------------------------------------------
+
+class TestProxyDatabaseExtendedFilter:
+    def test_filter_by_dt_includes_annual(self):
+        pdb = make_database(4)  # all records have dt=1 (annual)
+        filtered = pdb.filter(by='dt', keys=[0.9, 1.1])
+        assert filtered.nrec == 4
+
+    def test_filter_by_dt_excludes_annual(self):
+        pdb = make_database(4)  # dt=1; filter for sub-annual only
+        filtered = pdb.filter(by='dt', keys=[0.01, 0.5])
+        assert filtered.nrec == 0
+
+    def test_filter_by_loc_circle(self):
+        # make_database(3): lats=[-10,0,10], lons=[0,20,40]
+        pdb = make_database(3)
+        # centre (0, 20), radius 5000 km covers all three records
+        filtered = pdb.filter(by='loc-circle', keys=[0, 20, 5000])
+        assert filtered.nrec == 3
+
+    def test_filter_by_loc_square(self):
+        # make_database(6): lats=[-10,0,10,20,30,40], lons=[0,20,40,60,80,100]
+        pdb = make_database(6)
+        # lat in [-15, 15], lon in [0, 45] → records (lat=-10,lon=0), (lat=0,lon=20), (lat=10,lon=40)
+        filtered = pdb.filter(by='loc-square', keys=[-15, 15, -1, 45])
+        assert filtered.nrec == 3
+        for _, r in filtered.records.items():
+            assert -15 <= r.lat <= 15
+
+
+# ---------------------------------------------------------------------------
+# ProxyDatabase.standardize()
+# ---------------------------------------------------------------------------
+
+class TestProxyDatabaseStandardize:
+    def test_returns_database(self):
+        pdb = make_database(3)
+        result = pdb.standardize(ref_period=[1950, 1999], thresh=1)
+        assert isinstance(result, ProxyDatabase)
+
+    def test_standardized_tag_present(self):
+        pdb = make_database(3)
+        result = pdb.standardize(ref_period=[1950, 1999], thresh=1)
+        for _, rec in result.records.items():
+            assert 'standardized' in rec.tags
+
+
+# ---------------------------------------------------------------------------
+# ProxyDatabase.nrec_tags()
+# ---------------------------------------------------------------------------
+
+class TestProxyDatabaseNrecTags:
+    def test_counts_matching_records(self):
+        pdb = make_database(4)
+        pdb.records['rec_000'].tags.add('selected')
+        pdb.records['rec_001'].tags.add('selected')
+        assert pdb.nrec_tags('selected') == 2
+
+    def test_returns_zero_for_absent_tag(self):
+        pdb = make_database(3)
+        assert pdb.nrec_tags('nonexistent') == 0
+
+    def test_all_tagged(self):
+        pdb = make_database(3)
+        for pid in pdb.pids:
+            pdb.records[pid].tags.add('mytag')
+        assert pdb.nrec_tags('mytag') == 3
