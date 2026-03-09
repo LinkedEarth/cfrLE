@@ -90,7 +90,7 @@ class ClimateField:
         return fd
 
     def __len__(self):
-        return len(self.time)
+        return self.da.sizes['time']
 
     def wrap_lon(self, mode='360'):
         ''' Convert the longitude values
