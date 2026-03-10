@@ -510,7 +510,7 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
                  title=None, title_weight='normal', markers_dict=None, colors_dict=None,
                  plot_timespan=None,  plot_xticks=[850, 1000, 1200, 1400, 1600, 1800, 2000],
                  figsize=[10, 10], projection='Robinson', proj_args=None, central_longitude=180, markersize=50,
-                 plot_count=False, nrow=2, ncol=1, wspace=0.5, hspace=0.3, return_gs=False,
+                 plot_count=False, plot_continuous=False, nrow=2, ncol=1, wspace=0.5, hspace=0.3, return_gs=False,
                  lgd_ncol=None, lgd_anchor_upper=(1, 0), lgd_anchor_lower=(1, -0.05),lgd_frameon=False,
                  enumerate_ax=False, enumerate_prop={'weight': 'bold', 'size': 30}, p=STYLE, stock_img=True, modern_topo=True,
                  enumerate_anchor_map=[0, 1], enumerate_anchor_count=[0, 1], map_grid_idx=0, count_grid_idx=1):
@@ -599,10 +599,13 @@ def plot_proxies(df, year=np.arange(2001), lon_col='lon', lat_col='lat', type_co
 
         for index, row in df.iterrows():
             ptype = row[type_col]
-            time = np.array(row[time_col]).astype(int)
-            time = time[~np.isnan(time)]
-            time = time[time<np.max(year)+1]
-            time = np.sort(list(set(time)))  # remove the duplicates for monthly data
+            time = np.array(row[time_col]).astype(float)
+            time = time[~np.isnan(time)].astype(int)
+            time = time[time < np.max(year) + 1]
+            if plot_continuous:
+                time = np.arange(np.min(time), np.max(time) + 1)
+            else:
+                time = np.sort(list(set(time)))  # remove the duplicates for monthly data
             ts = pd.Series(index=time, data=1, name=row['pid'])
             df_count[ptype] = pd.concat([df_count[ptype], ts], axis=1)
 
