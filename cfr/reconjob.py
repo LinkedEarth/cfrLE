@@ -72,6 +72,46 @@ class ReconJob:
             if verbose: p_header(f'>>> job.configs["{k}"] = {v}')
         else:
             raise ValueError(f'{k} not properly set.')
+        return v
+
+    def _auto_recon_period(self) -> list:
+        '''Infer reconstruction period from the time coverage of the loaded proxydb.
+
+        Returns the range [floor(min_time), ceil(max_time)] across all proxy
+        records.  Falls back to [0, 2000] if no proxydb is available.
+        '''
+        pdb = getattr(self, 'proxydb', None)
+        if pdb is None or not hasattr(pdb, 'records') or pdb.nrec == 0:
+            return [0, 2000]
+        all_times = np.concatenate([pobj.time for pobj in pdb])
+        finite = all_times[np.isfinite(all_times)]
+        if len(finite) == 0:
+            return [0, 2000]
+        return [int(np.floor(finite.min())), int(np.ceil(finite.max()))]
+
+    def _validated_recon_period(self, requested: list) -> list:
+        '''Clip a requested recon_period to the actual proxy coverage.
+
+        If the requested period extends beyond what the proxy data cover,
+        it is silently trimmed and a warning is printed.  Returns the
+        (possibly adjusted) period and updates ``self.configs`` in place.
+        '''
+        if requested is None:
+            return requested
+        pdb = getattr(self, 'proxydb', None)
+        if pdb is None or not hasattr(pdb, 'records') or pdb.nrec == 0:
+            return requested
+        actual = self._auto_recon_period()
+        lo = max(requested[0], actual[0])
+        hi = min(requested[1], actual[1])
+        if lo != requested[0] or hi != requested[1]:
+            p_warning(
+                f'>>> Requested recon_period {requested} extends beyond proxy coverage '
+                f'{actual}; adjusting to [{lo}, {hi}].'
+            )
+            self.configs['recon_period'] = [lo, hi]
+        return [lo, hi]
+
 
         return v
 
@@ -526,7 +566,8 @@ class ReconJob:
             verbose (bool, optional): print verbose information. Defaults to False.
             debug (bool): if True, the debug mode is turned on and more information will be printed out.
         '''
-        recon_period = self.io_cfg('recon_period', recon_period, default=[0, 2000], verbose=verbose)
+        recon_period = self.io_cfg('recon_period', recon_period, default=self._auto_recon_period(), verbose=verbose)
+        recon_period = self._validated_recon_period(recon_period)
         recon_loc_rad = self.io_cfg('recon_loc_rad', recon_loc_rad, default=25000, verbose=verbose)  # unit: km
         recon_timescale = self.io_cfg('recon_timescale', recon_timescale, default=1, verbose=verbose)  # unit: yr
         recon_sampling_mode = self.io_cfg('recon_sampling_mode', recon_sampling_mode, default='fixed', verbose=verbose)
@@ -594,7 +635,8 @@ class ReconJob:
         '''
 
         t_s = time.time()
-        recon_period = self.io_cfg('recon_period', recon_period, default=[0, 2000], verbose=verbose)
+        recon_period = self.io_cfg('recon_period', recon_period, default=self._auto_recon_period(), verbose=verbose)
+        recon_period = self._validated_recon_period(recon_period)
         recon_loc_rad = self.io_cfg('recon_loc_rad', recon_loc_rad, default=25000, verbose=verbose)  # unit: km
         recon_timescale = self.io_cfg('recon_timescale', recon_timescale, default=1, verbose=verbose)  # unit: yr
         recon_vars = self.io_cfg('recon_vars', recon_vars, default=['tas'], verbose=verbose)

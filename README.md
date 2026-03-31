@@ -10,6 +10,7 @@
 
 
 # `cfr`: a Python package for Climate Field Reconstruction
+`cfr` is the brain child of [Feng Zhu](https://staff.cgd.ucar.edu/fengzhu).  This fork of the original repository aims to develop `cfr` features for the [PReSto](https://paleopresto.com), [PaleoAgro](https://www.nsf.gov/awardsearch/showAward?AWD_ID=2402618&HistoricalAwards=false) and [LMR4D](https://www.nsf.gov/awardsearch/showAward?AWD_ID=2402476&HistoricalAwards=false) projects. Incorporation back into the main repository is undefined at this point in time.  
 
 > [!NOTE]
 > If you use `cfr` in any way for your publications, please cite:

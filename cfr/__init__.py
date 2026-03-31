@@ -29,6 +29,10 @@ set_style(style='journal', font_scale=1.2)
 from importlib.metadata import version
 __version__ = version('cfr')
 
+# Fork identifier — distinguishes this LinkedEarth fork from the upstream cfr package.
+# Check with: import cfr; assert cfr.__variant__ == "cfrLE"
+__variant__ = "cfrLE"
+
 
 # mute future warnings from pkgs like pandas
 import warnings
