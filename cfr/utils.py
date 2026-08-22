@@ -7,6 +7,7 @@ import colorama as ca
 import statsmodels.api as sm
 import pyresample
 import requests
+import warnings
 from tqdm import tqdm
 
 
@@ -437,19 +438,24 @@ def coefficient_efficiency(ref, test, valid=None):
     Args:
         ref (numpy.ndarray):   reference array, of same size as test
         test (numpy.ndarray):  test array
-        valid (float): fraction of valid data required to calculate the statistic
+        valid (float): fraction of paired-valid data (years where both `ref` and `test`
+            are finite) required to calculate the statistic; cells below this fraction
+            are returned as NaN
 
     Note:
         Assumes that the first dimension in test and ref arrays is time!!!
+        NaNs are handled pairwise: a year is excluded from both the numerator and the
+        reference-mean/denominator wherever either `ref` or `test` is NaN there.
 
     Returns:
-        CE (float): CE statistic calculated following Nash & Sutcliffe (1970)
+        CE (float or numpy.ndarray): CE statistic calculated following Nash & Sutcliffe (1970)
     """
+    ref = np.asarray(ref, dtype=float)
+    test = np.asarray(test, dtype=float)
 
     # check array dimensions
-    dims_test = test.shape
     dims_ref  = ref.shape
-    # print('dims_test: ', dims_test, ' dims_ref: ', dims_ref)
+    # print('dims_test: ', test.shape, ' dims_ref: ', dims_ref)
 
     if len(dims_ref) == 3:   # 3D: time + 2D spatial
         dims = dims_ref[1:3]
@@ -461,29 +467,34 @@ def coefficient_efficiency(ref, test, valid=None):
         print('In coefficient_efficiency(): Problem with input array dimension! Exiting...')
         SystemExit(1)
 
-    CE = np.zeros(dims)
+    # pairwise validity mask so the numerator and denominator use the same years
+    mask = np.isfinite(ref) & np.isfinite(test)
+    ref_v = np.where(mask, ref, np.nan)
+    test_v = np.where(mask, test, np.nan)
+    nbok = np.sum(mask, axis=0)
 
-    # error
-    error = test - ref
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        ref_mean = np.nanmean(ref_v, axis=0)
+        numer = np.nansum(np.power(test_v - ref_v, 2), axis=0)
+        denom = np.nansum(np.power(ref_v - ref_mean, 2), axis=0)
 
-    # CE
-    numer = np.sum(np.power(error,2),axis=0)
-    denom = np.sum(np.power(ref-np.nanmean(ref,axis=0),2),axis=0)
-    CE    = 1. - np.divide(numer,denom)
+    numer = np.atleast_1d(numer)
+    denom = np.atleast_1d(denom)
+    nbok  = np.atleast_1d(nbok)
+
+    CE = np.full(denom.shape, np.nan)
+    ok = (denom > 0) & (nbok > 0)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        CE[ok] = 1. - numer[ok] / denom[ok]
 
     if valid:
-        nbok  = np.sum(np.isfinite(ref),axis=0)
         nball = float(dims_ref[0])
-        ratio = np.divide(nbok,nball)
-        indok  = np.where(ratio >= valid)
-        indbad = np.where(ratio < valid)
-        dim_indbad = len(indbad)
-        testlist = [indbad[k].size for k in range(dim_indbad)]
-        if not all(v == 0 for v in testlist):
-            if isinstance(dims,(tuple,list)):
-                CE[indbad] = np.nan
-            else:
-                CE = np.nan
+        ratio = nbok / nball
+        CE[ratio < valid] = np.nan
+
+    if dims == 1:
+        CE = CE.item()
 
     return CE
 

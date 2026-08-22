@@ -360,14 +360,14 @@ class ClimateField:
         fd = ClimateField(da)
         return fd
 
-    def compare(self, ref, timespan=None, stat='corr', interp_target='ref', interp=True):
+    def compare(self, ref, timespan=None, stat='corr', interp_target='ref', interp=True, valid=0.5):
         ''' Compare against a reference field.
 
         Args:
             ref (cfr.climate.ClimateField): the reference to compare against, assuming the first dimension to be time
             timespan (tuple or list): the timespan over which to compare two ClimateField objects.
             interp_target (str, optional): the direction to interpolate the fields:
-            
+
                 * 'ref': interpolate from `self` to `ref`
                 * 'self': interpolate from `ref` to `self`
 
@@ -376,6 +376,11 @@ class ClimateField:
                 * 'corr': correlation coefficient
                 * 'R2': coefficient of determination
                 * 'CE': coefficient of efficiency
+
+            valid (float): only used when `stat` is 'CE'. Fraction of paired-valid
+                (non-NaN in both fields) years required within the comparison window
+                for a grid cell's CE to be calculated; cells below this fraction are
+                returned as NaN. Defaults to 0.5, following the LMR verification convention.
         '''
         if interp:
             if interp_target == 'ref':
@@ -429,7 +434,7 @@ class ClimateField:
                 'title': 'Coefficient of Determination',
             }
         elif stat == 'CE':
-            ce = utils.coefficient_efficiency(ref_rg.da.values, fd_rg.da.values)
+            ce = utils.coefficient_efficiency(ref_rg.da.values, fd_rg.da.values, valid=valid)
             stat_da = xr.DataArray(
                 ce[np.newaxis],
                 name=stat,

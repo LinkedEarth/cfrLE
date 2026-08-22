@@ -521,7 +521,7 @@ class EnsTS:
         else:
             return ax
 
-    def compare(self, ref=None, ref_time=None, ref_value=None, ref_name='reference', stats=['corr', 'CE'], timespan=None):
+    def compare(self, ref=None, ref_time=None, ref_value=None, ref_name='reference', stats=['corr', 'CE'], timespan=None, valid=0.5):
         ''' Compare against a reference timeseries.
 
         Args:
@@ -530,6 +530,10 @@ class EnsTS:
             ref_value (numpy.array): the value axis of the reference timeseries
             stats (list, optional): the list of validation statistics to calculate. Defaults to ['corr', 'CE'].
             timespan (tuple, optional): the time period for validation. Defaults to None.
+            valid (float): only used when `stats` includes 'CE'. Fraction of paired-valid
+                (non-NaN in both timeseries) years required within `timespan` to calculate
+                CE; if below this fraction, CE is returned as NaN. Defaults to 0.5, following
+                the LMR verification convention.
         '''
         new = self.copy()
         new.valid_stats = {}
@@ -567,7 +571,7 @@ class EnsTS:
                 r, p = pearsonr(recon_slice, ref_slice)
                 new.valid_stats['R2'], new.valid_stats['p-value'] = r**2, p
             elif stat == 'CE':
-                new.valid_stats['CE'] = coefficient_efficiency(ref_slice, recon_slice)
+                new.valid_stats['CE'] = coefficient_efficiency(ref_slice, recon_slice, valid=valid)
             else:
                 raise ValueError('Wrong `stat`; should be one of `corr`, `R2`, and `CE`.' )
 
