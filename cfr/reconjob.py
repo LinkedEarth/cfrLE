@@ -289,7 +289,7 @@ class ReconJob:
             verbose (bool, optional): print verbose information. Defaults to False.
         '''
         for pid, pobj in self.proxydb.records.items():
-            pobj.tags = []
+            pobj.tags = set()
 
         if verbose:
             p_success(f'>>> job.proxydb updated with tags cleared')
@@ -304,6 +304,12 @@ class ReconJob:
             verbose (bool, optional): print verbose information. Defaults to False.
         '''
         assim_frac = self.io_cfg('proxy_assim_frac', assim_frac, default=0.75, verbose=verbose)
+
+        # remove the tags of any previous split, so that repeated calls (e.g., one per seed
+        # in run_da_mc) give independent splits instead of accumulating 'assim' records
+        for pid, pobj in self.proxydb.records.items():
+            pobj.tags = set(pobj.tags) - {'assim', 'eval'}
+
         target_pdb = self.proxydb.filter(by='tag', keys=[tag])
 
         nrec_assim = int(target_pdb.nrec * assim_frac)
