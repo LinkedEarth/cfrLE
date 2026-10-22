@@ -252,6 +252,18 @@ class TestReconJobSplitProxydb:
         tags2 = {pid: frozenset(r.tags) for pid, r in job.proxydb.records.items()}
         assert tags1 == tags2
 
+    def test_resplit_replaces_previous_split(self):
+        # A second split (e.g., the next seed in run_da_mc) must not keep the
+        # 'assim'/'eval' tags of the first one
+        job = self._make_calibrated_job(n=4)
+        for seed in range(10):
+            job.split_proxydb(seed=seed, assim_frac=0.5)
+            assim = {pid for pid, r in job.proxydb.records.items() if 'assim' in r.tags}
+            evals = {pid for pid, r in job.proxydb.records.items() if 'eval' in r.tags}
+            assert len(assim) == 2
+            assert len(evals) == 2
+            assert assim.isdisjoint(evals)
+
     def test_all_tagged_records_assigned(self):
         # Every calibrated record gets either assim or eval — none left unassigned
         job = self._make_calibrated_job(n=4)
