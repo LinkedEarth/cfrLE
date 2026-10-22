@@ -187,6 +187,35 @@ class TestAnnualize:
         # JJA mean should be 1.0 since we only picked JJA months
         np.testing.assert_allclose(val_ann, 1.0, atol=1e-10)
 
+    @pytest.mark.parametrize('start', [1.5, 0.5, -4.5, -1161.0])
+    def test_years_at_or_before_zero(self, start):
+        # annual records starting at or before year 0 used to raise 'year 0 is out of range'
+        time = start + np.arange(50)
+        value = np.arange(50, dtype=float)
+        time_ann, val_ann = utils.annualize(time, value)
+        np.testing.assert_array_equal(time_ann, np.floor(start) + np.arange(50))
+        np.testing.assert_allclose(val_ann, value)
+
+    def test_subannual_across_year_zero(self):
+        time = -2 + np.arange(48)/12
+        value = np.repeat(np.arange(4, dtype=float), 12)
+        time_ann, val_ann = utils.annualize(time, value)
+        np.testing.assert_array_equal(time_ann, [-2, -1, 0, 1])
+        np.testing.assert_allclose(val_ann, [0, 1, 2, 3])
+
+    def test_djf_season_across_year_zero(self):
+        # December goes to the following year's DJF
+        time = -1 + np.arange(24)/12
+        value = np.tile(np.arange(1, 13, dtype=float), 2)
+        time_ann, val_ann = utils.annualize(time, value, months=[-12, 1, 2])
+        np.testing.assert_array_equal(time_ann, [-1, 0, 1])
+        np.testing.assert_allclose(val_ann, [1.5, (12+1+2)/3, 12])
+
+    def test_missing_months_raise(self):
+        time = 1990 + np.arange(10, dtype=float)  # whole years fall in January
+        with pytest.raises(ValueError):
+            utils.annualize(time, np.ones(10), months=[6, 7, 8])
+
 
 # ---------------------------------------------------------------------------
 # colored_noise

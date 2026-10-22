@@ -411,6 +411,14 @@ class TestProxyDatabaseAnnualize:
         assert isinstance(ann, ProxyDatabase)
         assert ann.nrec <= pdb.nrec  # might drop records if can't annualize
 
+    def test_annualize_keeps_records_before_year_zero(self):
+        pdb = ProxyDatabase()
+        for i, start in enumerate([1.5, 0.5, -4.5]):
+            pdb += ProxyRecord(pid=f'early_{i}', lat=0.0, lon=0.0, ptype='tree.TRW',
+                               time=start + np.arange(50), value=np.arange(50, dtype=float))
+        ann = pdb.annualize()
+        assert ann.nrec == 3
+
 
 # ---------------------------------------------------------------------------
 # ProxyRecord.get_clim() / del_clim() / del_pseudo()

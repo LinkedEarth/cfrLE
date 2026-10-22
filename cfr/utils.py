@@ -219,15 +219,43 @@ def gcd(lat1, lon1, lat2, lon2):
 	km = 6367 * c
 	return km
 
+def _year_float2year_month(year_float):
+    ''' Split floats in unit of year into integer years and months, as year_float2datetime does,
+    but without datetime objects, so that years <= 0 are supported
+    '''
+    year_float = np.asarray(year_float, dtype=float)
+    year = np.floor(year_float).astype(int)
+    is_leap = (year % 4 == 0) & ((year % 100 != 0) | (year % 400 == 0))
+    year_length = np.where(is_leap, 366, 365)
+    # days since 1 January; one minute is added to fix the numerical error, as in year_float2datetime
+    doy = np.floor((year_float - year)*year_length + 1/1440).astype(int)
+    rollover = doy >= year_length
+    year = np.where(rollover, year+1, year)
+    doy = np.where(rollover, 0, doy)
+    month_starts = np.cumsum([0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30])
+    month = np.searchsorted(month_starts, doy, side='right')
+    month_starts_leap = month_starts + (month_starts >= 59)
+    month_leap = np.searchsorted(month_starts_leap, doy, side='right')
+    month = np.where(is_leap & ~rollover, month_leap, month)
+    return year, month
+
 def annualize(time=None, value=None, da=None, months=None):
     # convert negative months to support expressions like [-12, 1, 2]
     months = list(range(1, 13)) if months is None else np.abs(months)
 
     if da is None:
-        dates = year_float2datetime(time)
-        da_wk = xr.DataArray(
-            value, dims=['time'], coords={'time': dates}
-        )
+        # bin on numeric years rather than calendar dates, so that years <= 0 are supported;
+        # a month after the last month of the season belongs to the next year's season (e.g., Dec for [12, 1, 2])
+        year, month = _year_float2year_month(time)
+        mask = np.isin(month, months)
+        if not np.any(mask):
+            raise ValueError(f'No data in months {list(months)}.')
+
+        season_year = year[mask] + (month[mask] > months[-1])
+        sr = pd.Series(np.asarray(value, dtype=float)[mask]).groupby(season_year).mean()
+        time_ann = np.arange(sr.index.min(), sr.index.max()+1).astype(float)
+        value_ann = sr.reindex(time_ann.astype(int)).values
+        return time_ann, value_ann
     else:
         da_wk = da
 
@@ -236,13 +264,8 @@ def annualize(time=None, value=None, da=None, months=None):
     anchor = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
     idx = months[-1]-1
     sda_ann = sda.resample(time=f'A-{anchor[idx]}').mean()
-    time_ann = np.floor(datetime2year_float(sda_ann.time.values))
-    value_ann = sda_ann.values
 
-    if da is None:
-        return time_ann, value_ann
-    else:
-        return sda_ann
+    return sda_ann
 
 def annualize_var(year_float, var, resolution='month', weights=None):
     ''' Annualize a variable array
