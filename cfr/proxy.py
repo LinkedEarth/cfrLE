@@ -1729,7 +1729,10 @@ class ProxyDatabase:
             new += spobj
 
         new = new.filter(by='tag', keys=['annualized'])
-        if verbose and not force: p_warning(f'{self.nrec - new.nrec} records have been dropped as they cannot be properly annualized with the given months.')
+        dropped = [pid for pid in self.records if pid not in new.records]
+        if len(dropped) > 0:
+            # warn even when not verbose, since the dropped records are otherwise easy to miss
+            p_warning(f'{len(dropped)} records have been dropped as they cannot be properly annualized with the given months: {", ".join(dropped)}')
         return new
 
     def slice(self, timespan):
