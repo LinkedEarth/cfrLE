@@ -122,6 +122,32 @@ class TestReconJobCalibPSMs:
                 assert hasattr(pobj, 'R'), f'{pid} missing R'
                 assert np.isfinite(pobj.R), f'{pid}.R is not finite'
 
+    def _calib(self, **kwargs):
+        job = ReconJob()
+        job.prior = {'tas': make_prior()}
+        job.proxydb = make_proxy_db()
+        job.calib_psms(
+            ptype_psm_dict={'tree.TRW': 'TempPlusNoise'},
+            ptype_clim_dict={'tree.TRW': ['tas']},
+            **kwargs,
+        )
+        return job
+
+    def test_R_floor(self):
+        job = self._calib(R_floor=5.0)
+        for pid, pobj in job.proxydb.records.items():
+            assert pobj.R == pytest.approx(5.0)
+
+    def test_R_floor_frac(self):
+        job = self._calib(R_floor_frac=2.0)
+        for pid, pobj in job.proxydb.records.items():
+            assert pobj.R == pytest.approx(2.0 * np.nanvar(pobj.value))
+
+    def test_no_R_floor_by_default(self):
+        job = self._calib()
+        for pid, pobj in job.proxydb.records.items():
+            assert pobj.R == pytest.approx(pobj.psm.calib_details['PSMmse'])
+
     def test_calibrated_records_have_psm(self, calibrated_job):
         for pid, pobj in calibrated_job.proxydb.records.items():
             if 'calibrated' in pobj.tags:
