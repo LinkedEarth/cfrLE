@@ -443,7 +443,7 @@ class ReconJob:
         
         
     def calib_psms(self, ptype_psm_dict=None, ptype_season_dict=None, ptype_clim_dict=None, calib_period=None,
-                   use_predefined_R=False, verbose=False, **kwargs):
+                   use_predefined_R=False, pid_sign_dict=None, verbose=False, **kwargs):
         ''' Calibrate the PSMs.
 
         Args:
@@ -452,6 +452,10 @@ class ReconJob:
             ptype_clim_dict (dict): the dictionary to denote the required climate variables for each proxy type; ['tas'] for all by default.
             calib_period (tuple or list): the time period for calibration.
             use_predefined_R (bool): use the predefined observation error covariance instead of by calibration.
+            pid_sign_dict (dict): the dictionary to denote the expected sign (1 or -1) of the response of each record
+                to the climate variable, e.g., from its interpretation metadata; for records with the Linear PSM,
+                only seasons whose slope has this sign are considered (see :py:meth:`cfr.psm.Linear.calibrate`).
+                Records not in the dictionary are unconstrained. Defaults to None (no constraint).
             verbose (bool, optional): print verbose information. Defaults to False.
         '''
         ptype_psm_dict_default = {ptype: 'Linear' for ptype in set(self.proxydb.type_list)}
@@ -502,6 +506,9 @@ class ReconJob:
                     season_list1=ptype_season_dict[pobj.ptype], season_list2=ptype_season_dict[pobj.ptype],
                     calib_period=calib_period, **kwargs,
                 )
+            elif psm_name == 'Linear' and pid_sign_dict is not None and pid in pid_sign_dict:
+                pobj.psm.calibrate(season_list=ptype_season_dict[pobj.ptype], calib_period=calib_period,
+                                   expected_sign=pid_sign_dict[pid], **kwargs)
             else:
                 pobj.psm.calibrate(season_list=ptype_season_dict[pobj.ptype], calib_period=calib_period, **kwargs)
 

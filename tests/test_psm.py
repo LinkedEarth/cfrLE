@@ -102,6 +102,37 @@ class TestLinearPSM:
         )
         return lpsm
 
+    def _two_season_proxy(self):
+        # the proxy responds positively to Jan-Jun and more strongly, negatively, to Jul-Dec
+        pobj = make_proxy_with_climate(seed=2, n_calib=40)
+        da = pobj.clim['obs.tas'].da
+        h1 = da.sel(time=da['time.month'] <= 6).groupby('time.year').mean().values.squeeze()
+        h2 = da.sel(time=da['time.month'] > 6).groupby('time.year').mean().values.squeeze()
+        pobj.value = 0.5*h1 - 1.0*h2
+        return pobj
+
+    def _calibrate(self, pobj, **kwargs):
+        lpsm = psm.Linear(pobj=pobj, climate_required=['tas'])
+        lpsm.calibrate(nobs_lb=10, season_list=[[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]],
+                       exog_name='obs.tas', **kwargs)
+        return lpsm
+
+    def test_season_by_score_alone(self):
+        lpsm = self._calibrate(self._two_season_proxy())
+        assert lpsm.calib_details['seasonality'] == [7, 8, 9, 10, 11, 12]
+
+    def test_expected_sign_constrains_season(self):
+        lpsm = self._calibrate(self._two_season_proxy(), expected_sign=1)
+        assert lpsm.calib_details['seasonality'] == [1, 2, 3, 4, 5, 6]
+        assert lpsm.model.params['tas'] > 0
+
+    def test_expected_sign_with_no_matching_season(self):
+        pobj = self._two_season_proxy()
+        pobj.value = -pobj.value  # now Jan-Jun negative and Jul-Dec positive
+        lpsm = psm.Linear(pobj=pobj, climate_required=['tas'])
+        lpsm.calibrate(nobs_lb=10, season_list=[[1, 2, 3, 4, 5, 6]], exog_name='obs.tas', expected_sign=1)
+        assert lpsm.calib_details is None
+
     def test_calibrate_sets_model(self, calibrated_linear):
         assert calibrated_linear.model is not None
 

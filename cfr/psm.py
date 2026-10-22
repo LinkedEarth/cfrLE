@@ -94,7 +94,14 @@ class Linear:
         self.climate_required = climate_required
 
     def calibrate(self, calib_period=None, nobs_lb=25, metric='fitR2adj',
-        season_list=[list(range(1, 13))], exog_name=None, **fit_args):
+        season_list=[list(range(1, 13))], exog_name=None, expected_sign=None, **fit_args):
+        ''' Calibrate the PSM, choosing the season from season_list with the best score.
+
+        Args:
+            expected_sign (int, optional): if given (1 or -1), only seasons whose regression slope has this sign
+                are considered, e.g., the sign of the record's interpreted relationship with the climate variable.
+                If no season has it, the PSM is not calibrated. Defaults to None (no constraint).
+        '''
         if exog_name is None:
             exog_name = f'obs.{self.climate_required[0]}'
 
@@ -127,6 +134,9 @@ class Linear:
                 print(f'The number of overlapped data points is {nobs} < {nobs_lb}. Skipping ...')
             else:
                 mdl = smf.ols(formula=formula_spell, data=df).fit(**fit_args)
+                if expected_sign is not None and np.sign(mdl.params[exog_colname]) != np.sign(expected_sign):
+                    continue
+
                 fitR2adj =  mdl.rsquared_adj,
                 mse = np.mean(mdl.resid**2),
                 score = {
