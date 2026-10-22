@@ -443,7 +443,7 @@ class ReconJob:
         
         
     def calib_psms(self, ptype_psm_dict=None, ptype_season_dict=None, ptype_clim_dict=None, calib_period=None,
-                   use_predefined_R=False, verbose=False, **kwargs):
+                   use_predefined_R=False, R_floor=None, R_floor_frac=None, verbose=False, **kwargs):
         ''' Calibrate the PSMs.
 
         Args:
@@ -452,6 +452,10 @@ class ReconJob:
             ptype_clim_dict (dict): the dictionary to denote the required climate variables for each proxy type; ['tas'] for all by default.
             calib_period (tuple or list): the time period for calibration.
             use_predefined_R (bool): use the predefined observation error covariance instead of by calibration.
+            R_floor (float): the minimum observation error variance assigned from calibration. Defaults to 0 (no floor).
+            R_floor_frac (float): the minimum observation error variance assigned from calibration, as a fraction of
+                each record's own variance (e.g., 0.01 caps the signal-to-noise ratio at 10 whatever the record's units).
+                Where both are set, the larger floor applies. Defaults to 0 (no floor).
             verbose (bool, optional): print verbose information. Defaults to False.
         '''
         ptype_psm_dict_default = {ptype: 'Linear' for ptype in set(self.proxydb.type_list)}
@@ -478,6 +482,9 @@ class ReconJob:
             'psm_calib_period', calib_period,
             default=[1850, 2015],
             verbose=verbose)
+
+        R_floor = self.io_cfg('psm_R_floor', R_floor, default=0, verbose=verbose)
+        R_floor_frac = self.io_cfg('psm_R_floor_frac', R_floor_frac, default=0, verbose=verbose)
 
         for pid, pobj in tqdm(self.proxydb.records.items(), total=self.proxydb.nrec, desc='Calibrating the PSMs'):
             psm_name = ptype_psm_dict[pobj.ptype]
@@ -506,16 +513,24 @@ class ReconJob:
                 pobj.psm.calibrate(season_list=ptype_season_dict[pobj.ptype], calib_period=calib_period, **kwargs)
 
         # give the calibrated records a tag
+        n_floored = 0
         for pid, pobj in self.proxydb.records.items():
             if pobj.psm.calib_details is None:
                 if verbose: p_warning(f'>>> PSM for {pid} failed to be calibrated.')
             else:
                 self.proxydb.records[pid].tags.add('calibrated')
                 if not use_predefined_R:
-                    self.proxydb.records[pid].R = pobj.psm.calib_details['PSMmse']  # assign obs err variance
+                    R = pobj.psm.calib_details['PSMmse']  # assign obs err variance
+                    # a near-zero R (an almost perfect calibration fit) can make the Kalman gain blow up
+                    floor = max(R_floor, R_floor_frac * np.nanvar(np.asarray(pobj.value, dtype=float)))
+                    if R < floor:
+                        R = floor
+                        n_floored += 1
+                    self.proxydb.records[pid].R = R
 
         if verbose:
             p_success(f'>>> {self.proxydb.nrec_tags("calibrated")} records tagged "calibrated" with ProxyRecord.psm created')
+            if n_floored > 0: p_success(f'>>> R raised to the floor for {n_floored} records')
 
     def forward_psms(self, verbose=False, ptype_forward_dict=None):
         ''' Forward the PSMs.
